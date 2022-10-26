@@ -23,20 +23,22 @@ mod tests {
         let mut initiator = NoiseHandshake25519BLAKE2s::new(
             &melodies_chacha20poly1305::ChaChaPoly,
             &patterns::XX,
+            true,
+            &b""[..],
             ikey.as_ref(),
             None,
             None,
             None,
-            true,
         );
         let mut responder = NoiseHandshake25519BLAKE2s::new(
             &melodies_chacha20poly1305::ChaChaPoly,
             &patterns::XX,
+            false,
+            &b""[..],
             rkey.as_ref(),
             None,
             None,
             None,
-            false,
         );
 
         let payload_1 = b"message 1";

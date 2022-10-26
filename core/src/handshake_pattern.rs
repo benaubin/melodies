@@ -196,8 +196,3 @@ pub mod test {
         .validate().is_ok());
     }
 }
-
-// se -> ee
-// ss -> es
-// es -> ee
-// ss -> se

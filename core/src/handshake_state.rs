@@ -1,8 +1,8 @@
 use zeroize::Zeroizing;
 
-use crate::TransportState;
 use crate::crypto::{Cipher, TAG_SIZE};
 use crate::handshake_pattern::MessageToken::*;
+use crate::TransportState;
 use crate::{
     crypto::{DHKeypair, HashFunction},
     handshake_pattern::{HandshakePattern, MessageToken},
@@ -13,7 +13,7 @@ pub struct HandshakeState<
     const DHLEN: usize,
     const HASHLEN: usize,
     K: DHKeypair<DHLEN>,
-    H: HashFunction<HASHLEN>
+    H: HashFunction<HASHLEN>,
 > {
     symmetric_state: SymmetricState<HASHLEN, H>,
     /// The local static key pair
@@ -32,12 +32,8 @@ pub struct HandshakeState<
 }
 
 pub type ProtocolName = [&'static str; 8];
-impl<
-        const DHLEN: usize,
-        const HASHLEN: usize,
-        K: DHKeypair<DHLEN>,
-        H: HashFunction<HASHLEN>,
-    > HandshakeState<DHLEN, HASHLEN, K, H>
+impl<const DHLEN: usize, const HASHLEN: usize, K: DHKeypair<DHLEN>, H: HashFunction<HASHLEN>>
+    HandshakeState<DHLEN, HASHLEN, K, H>
 {
     pub fn protocol_name(
         pattern: &HandshakePattern,
@@ -59,25 +55,16 @@ impl<
     pub fn new(
         cipher: &'static dyn Cipher,
         pattern: &'static HandshakePattern,
+        initiator: bool,
+        prologue: &[u8],
         s: Option<&K>,
         e: Option<&K>,
         rs: Option<[u8; DHLEN]>,
         re: Option<[u8; DHLEN]>,
-        initiator: bool,
     ) -> Self {
         pattern.validate().expect("pattern must be valid");
-        let local_preshared = pattern.patterns[initiator as usize];
-        let remote_preshared = pattern.patterns[!initiator as usize];
 
-
-        let sends_s = pattern.patterns.iter().skip(initiator as usize).step_by(2).any(|msg| msg.contains(&S));
-        assert_eq!(s.is_some(), sends_s);
-
-        assert_eq!(e.is_some(), local_preshared.contains(&E));
-        assert_eq!(rs.is_some(), remote_preshared.contains(&S));
-        assert_eq!(re.is_some(), remote_preshared.contains(&E));
-
-        Self {
+        let mut state = Self {
             symmetric_state: SymmetricState::new(&Self::protocol_name(&pattern, cipher), cipher),
             s: s.cloned(),
             e: e.cloned(),
@@ -86,7 +73,40 @@ impl<
             initiator,
             turn: 0,
             pattern,
+        };
+        state.symmetric_state.mix_hash(prologue);
+        for (i, pre_msg) in pattern.patterns[..2].iter().enumerate() {
+            let local = i == !initiator as usize;
+            for tok in pre_msg.iter() {
+                let key = match tok {
+                    E => {
+                        if local {
+                            state
+                                .e
+                                .as_ref()
+                                .expect("requires local ephemeral key in premessage")
+                                .public_key()
+                        } else {
+                            state.re.expect("remote emphemeral key")
+                        }
+                    }
+                    S => {
+                        if local {
+                            state
+                                .s
+                                .as_ref()
+                                .expect("requires local static key in premessage")
+                                .public_key()
+                        } else {
+                            state.rs.expect("remote static key")
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+                state.symmetric_state.mix_hash(&key);
+            }
         }
+        state
     }
 
     fn dh(&mut self, tok: MessageToken) {
@@ -132,8 +152,9 @@ impl<
         for tok in msg.iter() {
             match tok {
                 E => {
-                    assert!(self.e.is_none());
-                    K::generate_keypair(&mut self.e);
+                    if self.e.is_none() {
+                        K::generate_keypair(&mut self.e);
+                    }
                     let e_pub = self.e.as_ref().unwrap().public_key();
                     self.symmetric_state.mix_hash(&e_pub);
                     buf_remaining[..e_pub.len()].copy_from_slice(&e_pub);
@@ -158,7 +179,9 @@ impl<
 
         // move headers before payload
         buf[..payload_headers_size].rotate_left(payload_size);
-        let ciphertext_size = self.symmetric_state.encrypt_and_hash(&mut buf[headers_size..][..payload_size + TAG_SIZE]);
+        let ciphertext_size = self
+            .symmetric_state
+            .encrypt_and_hash(&mut buf[headers_size..][..payload_size + TAG_SIZE]);
 
         headers_size + ciphertext_size
     }
@@ -227,11 +250,11 @@ impl<
 
     #[inline(always)]
     pub fn split(self) -> TransportState<HASHLEN> {
-        assert!( self.is_finished() );
+        assert!(self.is_finished());
         let (ini, res, hash) = self.symmetric_state.split();
         let (send, recv) = match self.initiator {
             true => (ini, res),
-            false => (res, ini)
+            false => (res, ini),
         };
         TransportState { send, recv, hash }
     }

@@ -1,10 +1,17 @@
 use melodies_core::crypto::DHKeypair;
-use x25519_dalek::{self, PublicKey};
+use x25519_dalek::{self, PublicKey, StaticSecret};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct DH25519 {
     key: x25519_dalek::StaticSecret
+}
+
+impl DH25519 {
+    pub fn new(data: &[u8]) -> Self {
+        let data: [u8; 32] = data.try_into().unwrap();
+        Self { key: StaticSecret::from(data) }
+    }
 }
 
 impl DHKeypair<32> for DH25519 {
