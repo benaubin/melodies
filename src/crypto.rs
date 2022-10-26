@@ -1,13 +1,14 @@
-use zeroize::{Zeroize, Zeroizing, ZeroizeOnDrop};
+use zeroize::{Zeroizing, ZeroizeOnDrop};
 
 pub const CIPHER_KEY_LEN: usize = 32;
+pub const TAG_SIZE: usize = 16;
 
 const MAX_HASH_BLOCKLEN: usize = 128;
 
 /// DH functions
 ///
 /// Spec: 4.1. DH functions
-pub trait DHKeypair<const DHLEN: usize>: Zeroize + Clone {
+pub trait DHKeypair<const DHLEN: usize>: Clone + ZeroizeOnDrop {
     const NAME: &'static str;
 
     /// Generates a new Diffie-Hellman key pair.
@@ -31,11 +32,8 @@ pub trait DHKeypair<const DHLEN: usize>: Zeroize + Clone {
 /// Cipher functions
 ///
 /// Spec: 4.2. Cipher functions
-pub trait Cipher: Zeroize {
-    const NAME: &'static str;
-
-    fn new(key: &[u8; 32], out: &mut Option<Self>) where Self: Sized;
-
+pub trait Cipher {
+    fn name(&self) -> &str;
     /// Encrypts plaintext using the cipher key k of 32 bytes and an 8-byte
     /// unsigned integer nonce nwhich must be unique for the key k.
     ///
@@ -47,25 +45,31 @@ pub trait Cipher: Zeroize {
     /// secret (note that this is an additional requirement that isn't necessarily
     /// met by all AEAD schemes).
     ///
-    /// Deviation: Rather than return ciphertext, the buffer is encrypted in place.
-    /// Only authentication data is returned, which should be appended to the buffer
-    fn encrypt(&self, n: u64, ad: &[u8], buf: &mut [u8]) -> [u8; 16];
-    /// Decrypts ciphertext using a cipher key k of 32 bytes, an 8-byte unsigned
-    /// integer nonce n, and associated data ad. Returns the plaintext, unless
-    /// authentication fails, in which case an error is signaled to the caller.
+    /// Deviation: Rather than return ciphertext, the buffer is encrypted in place and tag is written with the tag.
+    fn encrypt(&self, key: &[u8; CIPHER_KEY_LEN], n: u64, ad: &[u8], buf: &mut [u8], tag: &mut [u8; TAG_SIZE]);
+    /// Decrypts ciphertext in-place using a cipher key k of 32 bytes, an 8-byte unsigned
+    /// integer nonce n, and associated data ad.
+    /// 
+    /// The tag which was appended to the ciphertext is passed as `tag`
+    /// 
+    /// Returns true on success
     fn decrypt<'a>(
-        &self,
+        &self, 
+        key: &[u8; CIPHER_KEY_LEN],
         n: u64,
         ad: &[u8],
-        buf: &mut [u8],
-    ) -> Result<&'a [u8], ()>;
+        buf: &'a mut [u8],
+        tag: &'a [u8; TAG_SIZE]
+    ) -> bool;
     /// Sets the key to a 32-byte cipher key as a pseudorandom function of k.
-    /// 
-    /// If this function is not specifically defined for some set of cipher functions,
-    /// then it defaults to returning the first 32 bytes from ENCRYPT(k,    maxnonce, zerolen, zeros),
-    /// where maxnonce equals 2^64-1, zerolen is a zero-length byte sequence, and zeros is a sequence of
-    /// 32 bytes filled with zeros.
-    fn rekey(&mut self);
+    fn rekey(&self, key: &[u8; CIPHER_KEY_LEN], out: &mut [u8; CIPHER_KEY_LEN]) {
+        let mut tmp = [0; TAG_SIZE];
+        // If this function is not specifically defined for some set of cipher functions,
+        // then it defaults to returning the first 32 bytes from ENCRYPT(k,    maxnonce, zerolen, zeros),
+        // where maxnonce equals 2^64-1, zerolen is a zero-length byte sequence, and zeros is a sequence of
+        // 32 bytes filled with zeros.
+        self.encrypt(key, u64::MAX, &[], &mut out[..], &mut tmp);
+    }
 }
 
 pub trait HashFunction<const L: usize>: ZeroizeOnDrop {

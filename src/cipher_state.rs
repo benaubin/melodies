@@ -1,47 +1,72 @@
-use zeroize::{Zeroize};
-use crate::crypto::{CIPHER_KEY_LEN, Cipher};
+use crate::crypto::{Cipher, CIPHER_KEY_LEN, TAG_SIZE};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-#[derive(Clone, Zeroize)]
-pub struct CipherState<C: Cipher> {
-    cipher: Option<C>,
-    pub nonce: u64,
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct CipherState<Nonce = u64> {
+    key: [u8; CIPHER_KEY_LEN],
+    #[zeroize(skip)]
+    pub(crate) cipher: &'static dyn Cipher,
+    /// Note that a nonce of u64::MAX will cause an error on every call to encrypt
+    #[zeroize(skip)]
+    pub nonce: Nonce,
 }
 
-impl<C: Cipher> CipherState<C> {
-    pub const fn empty() -> Self {
-        Self { cipher: None, nonce: 0 }
+impl<T> CipherState<T> {
+    /// Encrypt, with a provided nonce (must prevent reuse).
+    /// This occurs in place. The last TAG_SIZE bytes of buf will be replaced with the AEAD tag.
+    pub fn encrypt_with_nonce(&self, n: u64, ad: &[u8], buf: &mut [u8]) {
+        assert_ne!(n, u64::MAX);
+        let (buf, tag) = buf.split_at_mut(buf.len() - TAG_SIZE);
+        let tag = tag.try_into().unwrap();
+        self.cipher.encrypt(&self.key, n, ad, buf, tag);
     }
-    pub fn initialize_key(&mut self, key: &[u8; CIPHER_KEY_LEN]) {
-        C::new(key, &mut self.cipher);
-        self.nonce = 0;
-    }
-    pub fn has_key(&self) -> bool {
-        self.cipher.is_some()
-    }
-    pub fn into_stateless(self) -> Option<C> {
-        self.cipher
+    pub fn decrypt_with_nonce<'a>(&self, n: u64, ad: &[u8], buf: &'a mut [u8]) -> Option<&'a [u8]> {
+        assert_ne!(n, u64::MAX);
+        let (buf, tag) = buf.split_at_mut(buf.len() - TAG_SIZE);
+        let tag = tag.as_ref().try_into().unwrap();
+        self.cipher.decrypt(&self.key, n, ad, buf, tag).then_some(buf)
     }
     pub fn rekey(&mut self) {
-        self.cipher.as_mut().unwrap().rekey();
-    }
-    pub fn encrypt(&mut self, ad: &[u8], buf: &mut [u8]) -> Option<[u8; 16]> {
-        match &self.cipher {
-            Some(cipher) => {
-                let res = cipher.encrypt(self.nonce, ad, buf);
-                self.nonce += 1;
-                Some(res)
-            },
-            None => None
-        }
-    }
-    pub fn decrypt<'a>(&mut self, ad: &[u8], buf: &'a mut [u8]) -> Result<&'a [u8], ()> {
-        match &self.cipher {
-            Some(cipher) => {
-                let res = cipher.decrypt(self.nonce, ad, buf);
-                if res.is_ok() { self.nonce += 1; }
-                res
-            },
-            None => Ok(buf)
-        }
+        let mut tmp = Zeroizing::new(self.key);
+        self.cipher.rekey(&tmp, &mut self.key);
     }
 }
+
+
+impl CipherState<u64> {
+    #[inline(always)]
+    pub(crate) const fn new(cipher: &'static dyn Cipher) -> Self {
+        Self {
+            key: [0; CIPHER_KEY_LEN],
+            cipher,
+            nonce: u64::MAX,
+        }
+    }
+    pub(crate) fn initialize_key(&mut self, key: &[u8; CIPHER_KEY_LEN]) {
+        self.key = *key;
+        self.nonce = 0;
+    }
+    #[inline(always)]
+    pub fn into_stateless(self) -> CipherState<()> {
+        CipherState {
+            key: self.key,
+            cipher: self.cipher,
+            nonce: (),
+        }
+    }
+    /// Returns the size of the encrypted message. Buf should have space for a tag
+    pub fn encrypt(&mut self, ad: &[u8], buf: &mut [u8]) -> usize {
+        self.encrypt_with_nonce(self.nonce, ad, buf);
+        self.nonce += 1;
+        buf.len()
+    }
+    /// Returns the decrypted payload
+    pub fn decrypt<'a>(&mut self, ad: &[u8], buf: &'a mut [u8]) -> Option<&'a [u8]> {
+        let res = self.decrypt_with_nonce(self.nonce, ad, buf);
+        if res.is_some() {
+            self.nonce += 1;
+        }
+        res
+    }
+}
+
