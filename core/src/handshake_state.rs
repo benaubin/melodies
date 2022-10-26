@@ -12,7 +12,7 @@ pub struct HandshakeState<
     const DHLEN: usize,
     const HASHLEN: usize,
     K: DHKeypair<DHLEN>,
-    H: HashFunction<HASHLEN>,
+    H: HashFunction<HASHLEN>
 > {
     symmetric_state: SymmetricState<HASHLEN, H>,
     /// The local static key pair
@@ -129,13 +129,13 @@ impl<
                     assert!(self.e.is_none());
                     K::generate_keypair(&mut self.e);
                     let e_pub = self.e.as_ref().unwrap().public_key();
-                    self.symmetric_state.mix_hash(e_pub);
-                    buf_remaining[..e_pub.len()].copy_from_slice(e_pub);
+                    self.symmetric_state.mix_hash(&e_pub);
+                    buf_remaining[..e_pub.len()].copy_from_slice(&e_pub);
                     buf_remaining = &mut buf_remaining[e_pub.len()..];
                 }
                 S => {
                     let s_pub = self.s.as_ref().unwrap().public_key();
-                    buf_remaining[..s_pub.len()].copy_from_slice(s_pub);
+                    buf_remaining[..s_pub.len()].copy_from_slice(&s_pub);
                     let len = self
                         .symmetric_state
                         .encrypt_and_hash(&mut buf_remaining[..s_pub.len() + TAG_SIZE]);

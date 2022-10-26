@@ -27,7 +27,7 @@ impl<T> CipherState<T> {
         self.cipher.decrypt(&self.key, n, ad, buf, tag).then_some(buf)
     }
     pub fn rekey(&mut self) {
-        let mut tmp = Zeroizing::new(self.key);
+        let tmp = Zeroizing::new(self.key);
         self.cipher.rekey(&tmp, &mut self.key);
     }
 }

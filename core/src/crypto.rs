@@ -15,7 +15,7 @@ pub trait DHKeypair<const DHLEN: usize>: Clone + ZeroizeOnDrop {
     fn generate_keypair(out: &mut Option<Self>) where Self: Sized;
 
     /// Get the public key
-    fn public_key(&self) -> &[u8; DHLEN];
+    fn public_key(&self) -> [u8; DHLEN];
 
     /// Performs a Diffie-Hellman calculation between the private key in key_pair and the public_key and
     /// returns an output sequence of bytes of length DHLEN.
