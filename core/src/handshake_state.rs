@@ -1,5 +1,6 @@
 use zeroize::Zeroizing;
 
+use crate::TransportState;
 use crate::crypto::{Cipher, TAG_SIZE};
 use crate::handshake_pattern::MessageToken::*;
 use crate::{
@@ -34,7 +35,7 @@ pub type ProtocolName = [&'static str; 8];
 impl<
         const DHLEN: usize,
         const HASHLEN: usize,
-        K: DHKeypair<DHLEN> + Drop,
+        K: DHKeypair<DHLEN>,
         H: HashFunction<HASHLEN>,
     > HandshakeState<DHLEN, HASHLEN, K, H>
 {
@@ -67,6 +68,11 @@ impl<
         pattern.validate().expect("pattern must be valid");
         let local_preshared = pattern.patterns[initiator as usize];
         let remote_preshared = pattern.patterns[!initiator as usize];
+
+
+        let sends_s = pattern.patterns.iter().skip(initiator as usize).step_by(2).any(|msg| msg.contains(&S));
+        assert_eq!(s.is_some(), sends_s);
+
         assert_eq!(e.is_some(), local_preshared.contains(&E));
         assert_eq!(rs.is_some(), remote_preshared.contains(&S));
         assert_eq!(re.is_some(), remote_preshared.contains(&E));
@@ -112,7 +118,7 @@ impl<
     }
 
     pub fn is_our_turn(&self) -> bool {
-        self.turn % 2 == (self.initiator as u8)
+        self.turn % 2 == (!self.initiator as u8)
     }
 
     pub fn write_msg(&mut self, buf: &mut [u8], payload_size: usize) -> usize {
@@ -152,7 +158,7 @@ impl<
 
         // move headers before payload
         buf[..payload_headers_size].rotate_left(payload_size);
-        let ciphertext_size = self.symmetric_state.encrypt_and_hash(&mut buf[headers_size..]);
+        let ciphertext_size = self.symmetric_state.encrypt_and_hash(&mut buf[headers_size..][..payload_size + TAG_SIZE]);
 
         headers_size + ciphertext_size
     }
@@ -213,5 +219,20 @@ impl<
         self.symmetric_state.restore(snapshot);
 
         None
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.turn as usize + 2 >= self.pattern.patterns.len()
+    }
+
+    #[inline(always)]
+    pub fn split(self) -> TransportState<HASHLEN> {
+        assert!( self.is_finished() );
+        let (ini, res, hash) = self.symmetric_state.split();
+        let (send, recv) = match self.initiator {
+            true => (ini, res),
+            false => (res, ini)
+        };
+        TransportState { send, recv, hash }
     }
 }

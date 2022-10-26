@@ -4,7 +4,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::{
     cipher_state::CipherState,
-    crypto::{hkdf, Cipher, HashFunction},
+    crypto::{hkdf, Cipher, HashFunction, TAG_SIZE},
     handshake_state::ProtocolName,
 };
 
@@ -116,10 +116,14 @@ impl<const HASHLEN: usize, H: HashFunction<HASHLEN>> SymmetricState<HASHLEN, H> 
     ///
     /// Note that if k is empty, the EncryptWithAd() call will set ciphertext equal to plaintext.
     pub fn encrypt_and_hash(&mut self, buf: &mut [u8]) -> usize {
-        let len = self.cipher.encrypt(&self.data.h, buf);
-        let buf = &buf[..len];
+        let buf = if self.has_key() {
+            let len = self.cipher.encrypt(&self.data.h, buf);
+            &buf[..len]
+        } else {
+            &buf[..buf.len() - TAG_SIZE]
+        };
         self.mix_hash(buf);
-        len
+        buf.len()
     }
 
     /// Sets plaintext = DecryptWithAd(h, ciphertext), calls MixHash(ciphertext), and returns plaintext.

@@ -1,0 +1,13 @@
+[package]
+name = "melodies"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+melodies-core = {path = "../core"}
+melodies-x25519-dalek = {path = "../x25519-dalek"}
+melodies-blake2 = {path = "../blake2"}
+melodies-chacha20poly1305 = {path = "../chacha20poly1305"}
+
