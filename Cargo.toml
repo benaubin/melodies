@@ -1,10 +1,2 @@
-[package]
-name = "melodies"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-
-zeroize = {version="1.5.7", features = ["zeroize_derive"]}
+[workspace]
+members = ["core", "x25519-dalek"]
