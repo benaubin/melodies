@@ -28,9 +28,33 @@ pub mod patterns {
         name: "NN",
         patterns: &[&[], &[], &[E], &[E, EE]],
     };
+    pub const NK: HandshakePattern = HandshakePattern {
+        name: "NK",
+        patterns: &[&[], &[S], &[E, ES], &[E, EE]],
+    };
+    pub const NX: HandshakePattern = HandshakePattern {
+        name: "NX",
+        patterns: &[&[], &[], &[E], &[E, EE, S, ES]],
+    };
+    pub const XN: HandshakePattern = HandshakePattern {
+        name: "XN",
+        patterns: &[
+            &[],
+            &[],
+            &[E],
+            &[E, EE],
+            &[S, SE]
+        ],
+    };
     pub const XK: HandshakePattern = HandshakePattern {
         name: "XK",
-        patterns: &[&[], &[S], &[E, ES], &[E, EE], &[S, SE]],
+        patterns: &[
+            &[],
+            &[S],
+            &[E, ES],
+            &[E, EE],
+            &[S, SE]
+        ],
     };
     pub const XX: HandshakePattern = HandshakePattern {
         name: "XX",
@@ -42,14 +66,58 @@ pub mod patterns {
             &[S, SE]
         ],
     };
+    pub const KN: HandshakePattern = HandshakePattern {
+        name: "KN",
+        patterns: &[
+            &[S],
+            &[],
+            &[E],
+            &[E, EE, SE]
+        ],
+    };
     pub const KK: HandshakePattern = HandshakePattern {
         name: "KK",
         patterns: &[
             &[S],
             &[S],
-            &[E],
             &[E, ES, SS],
             &[E, EE, SE]
+        ],
+    };
+    pub const KX: HandshakePattern = HandshakePattern {
+        name: "KX",
+        patterns: &[
+            &[S],
+            &[],
+            &[E],
+            &[E, EE, SE, S, ES]
+        ],
+    };
+    pub const IN: HandshakePattern = HandshakePattern {
+        name: "IN",
+        patterns: &[
+            &[],
+            &[],
+            &[E, S],
+            &[E, EE, SE],
+        ],
+    };
+    pub const IK: HandshakePattern = HandshakePattern {
+        name: "IK",
+        patterns: &[
+            &[],
+            &[S],
+            &[E, ES, S, SS],
+            &[E, EE, SE],
+        ],
+    };
+    pub const IX: HandshakePattern = HandshakePattern {
+        name: "IX",
+        patterns: &[
+            &[],
+            &[],
+            &[E, S],
+            &[E, EE, SE, S, ES],
         ],
     };
 }
@@ -59,7 +127,7 @@ pub enum InvalidReason {
     InvalidName,
     TooShort,
     BadPremessage,
-    RequiresDH,
+    MissingEphemeralDH,
     MissingKey,
     RedundantTransmission,
     EncryptAfterPSKBeforeE
@@ -142,22 +210,22 @@ impl HandshakePattern {
                 }
             }
 
-            match (ee, es, se, ss) {
-                // After an "se" token, the initiator must not send a handshake payload or transport payload
-                // unless there has also been an "ee" token.
-                (false, _, true, _) if initiator => return Err(InvalidReason::RequiresDH),
-                // After an "ss" token, the initiator must not send a handshake payload or transport payload
-                // unless there has also been an "es" token.
-                (_, false, _, true) if initiator => return Err(InvalidReason::RequiresDH),
-                // After an "es" token, the responder must not send a handshake payload or transport payload
-                // unless there has also been an "ee" token.
-                (false, true, _, _) if !initiator => return Err(InvalidReason::RequiresDH),
-                // After an "ss" token, the responder must not send a handshake payload or transport payload
-                // unless there has also been an "se" token.
-                (_, _, false, true) if !initiator => return Err(InvalidReason::RequiresDH),
-                _ => {}
+            if initiator {
+                if se {
+                    if !ee { return Err(InvalidReason::MissingEphemeralDH) }
+                }
+                if ss {
+                    if !es { return Err(InvalidReason::MissingEphemeralDH) }
+                }
+            } else {
+                if es {
+                    if !ee { return Err(InvalidReason::MissingEphemeralDH) }
+                }
+                if ss {
+                    if !es { return Err(InvalidReason::MissingEphemeralDH) }
+                }
             }
-
+            
             let sent_e = if initiator { in_e } else { re_e };
             if has_psk && !sent_e {
                 return Err(InvalidReason::EncryptAfterPSKBeforeE);

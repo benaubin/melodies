@@ -56,10 +56,20 @@ pub fn cacophony() {
 
         let pattern = match pattern {
             "NN" => &patterns::NN,
+            "NK" => &patterns::NK,
+            "NX" => &patterns::NX,
+            "XN" => &patterns::XN,
+            "XK" => &patterns::XK,
             "XX" => &patterns::XX,
+            "KN" => &patterns::KN,
             "KK" => &patterns::KK,
+            "KX" => &patterns::KX,
+            "IN" => &patterns::IN,
+            "IK" => &patterns::IK,
+            "IX" => &patterns::IX,
             _ => continue
         };
+
 
         let cipher = match cipher {
             "ChaChaPoly" => &melodies_chacha20poly1305::ChaChaPoly,
