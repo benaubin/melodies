@@ -1,3 +1,5 @@
+#![no_std]
+
 pub use melodies_core::crypto::{DHKeypair, TAG_SIZE};
 pub use melodies_core::{HandshakeState, TransportState, cipher_state::CipherState};
 

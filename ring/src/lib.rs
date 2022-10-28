@@ -1,3 +1,5 @@
+#![no_std]
+
 use melodies_core::{
     crypto::{Cipher, HashFunction},
     util::ForcedZeroizing,

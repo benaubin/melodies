@@ -1,3 +1,5 @@
+#![no_std]
+
 use chacha20poly1305::{aead::Nonce, AeadInPlace, ChaCha20Poly1305, KeyInit, Tag};
 use melodies_core::crypto::{Cipher, TAG_SIZE};
 

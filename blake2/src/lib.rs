@@ -1,3 +1,5 @@
+#![no_std]
+
 use blake2::{Blake2s256, Digest, Blake2b512};
 use generic_array::GenericArray;
 use melodies_core::crypto::HashFunction;
