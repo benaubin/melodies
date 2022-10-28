@@ -1,2 +1,26 @@
 [workspace]
-members = ["melodies", "core", "x25519-dalek", "chacha20poly1305", "blake2", "ring"]
+members = ["core", "x25519-dalek", "chacha20poly1305", "blake2", "ring"]
+
+[package]
+name = "melodies"
+description = "a sweet implementation of the noise protocol"
+license = "Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+documentation = "https://docs.rs/melodies"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+melodies-core = {path = "./core", version = "0.1"}
+melodies-x25519-dalek = {path = "./x25519-dalek", version = "0.1"}
+melodies-blake2 = {path = "./blake2", version = "0.1"}
+melodies-ring = {path = "./ring", version = "0.1"}
+
+
+[dev-dependencies]
+serde = {version="1", features=["derive"]}
+serde_json = "*"
+hex = {version = "0.4.3", features=["serde"]}
+melodies-chacha20poly1305 = {path = "./chacha20poly1305"}
+

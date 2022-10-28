@@ -1,9 +1,8 @@
 # melodies
 
-a no_std, minimal allocations rust noise implementation, written for fun
+a no_std, minimal allocations rust noise implementation
 
-> hi. this is an untested, unaudited cryptography library written by a bored college student
-> 
-> you probably shouldn't use it in it's current form.
+> this is an unaudited and early development crate. it works and is tested against vectors from other
+> crates, but you probably shouldn't use it in it's current form for anything critical.
 >
-> [snow is good](https://docs.rs/snow/latest/snow/)
+> [snow is a good option](https://docs.rs/snow/latest/snow/)
