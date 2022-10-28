@@ -13,4 +13,3 @@ documentation = "https://docs.rs/melodies-ring"
 ring = "0.16"
 melodies-core = {path = "../core", version = "0.1"}
 zeroize = "1.5"
-rand = {version = "0.8", features = ["getrandom"]}
