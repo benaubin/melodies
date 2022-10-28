@@ -208,6 +208,56 @@ pub fn test_vectors(vectors: VectorFile) {
                 );
                 do_handshake(initiator, responder, &vector)
             },
+            ("25519", "BLAKE2b") => {
+                let initiator = melodies::HandshakeState::<32, 64, _, BLAKE2b>::new(
+                    cipher,
+                    &pattern,
+                    true,
+                    &vector.init_prologue.0,
+                    vector
+                        .init_static
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .init_ephemeral
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .init_remote_static
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                    vector
+                        .init_remote_ephemeral
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                );
+                let responder = melodies::HandshakeState::<32, 64, _, BLAKE2b>::new(
+                    cipher,
+                    pattern,
+                    false,
+                    &vector.resp_prologue.0,
+                    vector
+                        .resp_static
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .resp_ephemeral
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .resp_remote_static
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                    vector
+                        .resp_remote_ephemeral
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                );
+                do_handshake(initiator, responder, &vector)
             }
             _ => continue,
         };

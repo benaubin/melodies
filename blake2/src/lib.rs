@@ -36,7 +36,7 @@ impl HashFunction<64> for BLAKE2b {
 
     const NAME: &'static str = "BLAKE2b";
 
-    const BLOCKLEN: usize = 129;
+    const BLOCKLEN: usize = 128;
 
     fn update(&mut self, data: &[u8]) {
         Digest::update(&mut *self.0, data);
