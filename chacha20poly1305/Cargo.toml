@@ -4,6 +4,8 @@ description = "a sweet implementation of the noise protocol"
 license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/benaubin/melodies"
+documentation = "https://docs.rs/melodies-chacha20poly1305"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
