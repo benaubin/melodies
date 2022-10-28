@@ -9,6 +9,7 @@ pub use handshake_pattern::patterns;
 
 pub mod crypto;
 pub mod cipher_state;
+pub mod util;
 
 pub use handshake_state::HandshakeState;
 

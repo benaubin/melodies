@@ -58,9 +58,8 @@ pub trait Cipher {
         key: &[u8; CIPHER_KEY_LEN],
         n: u64,
         ad: &[u8],
-        buf: &'a mut [u8],
-        tag: &'a [u8; TAG_SIZE]
-    ) -> bool;
+        buf: &'a mut [u8]
+    ) -> Option<&'a [u8]>;
     /// Sets the key to a 32-byte cipher key as a pseudorandom function of k.
     fn rekey(&self, key: &[u8; CIPHER_KEY_LEN], out: &mut [u8; CIPHER_KEY_LEN]) {
         let mut tmp = [0; TAG_SIZE];

@@ -1,8 +1,11 @@
 use std::time::{Instant};
 
-use melodies::{patterns, BLAKE2s, DH25519, TAG_SIZE};
+use melodies::{patterns, TAG_SIZE};
+use melodies::crypto::{BLAKE2s, DH25519,};
 
 use melodies_blake2::BLAKE2b;
+use melodies_core::crypto::Cipher;
+use melodies_ring::SHA;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -135,9 +138,10 @@ fn do_handshake<
     }
 }
 
-pub fn test_vectors(vectors: VectorFile) {
+pub fn test_vectors(vectors: VectorFile, use_ring_chacha: bool) {
     let start = Instant::now();
     let mut test_count = 0;
+    let mut skipped = 0;
     for vector in vectors.vectors.iter() {
         let mut parts = vector.protocol_name.split("_");
         parts.next();
@@ -152,7 +156,11 @@ pub fn test_vectors(vectors: VectorFile) {
         };
 
         let cipher = match cipher_name {
-            "ChaChaPoly" => &melodies_chacha20poly1305::ChaChaPoly,
+            "ChaChaPoly" => match use_ring_chacha {
+                true => &melodies_ring::ChaChaPoly as &'static dyn Cipher,
+                false => &melodies_chacha20poly1305::ChaChaPoly as &'static dyn Cipher,
+            }
+            "AESGCM" => &melodies_ring::AESGCM,
             _ => continue,
         };
 
@@ -259,23 +267,139 @@ pub fn test_vectors(vectors: VectorFile) {
                 );
                 do_handshake(initiator, responder, &vector)
             }
-            _ => continue,
+            ("25519", "SHA256") => {
+                let initiator = melodies::HandshakeState::<32, 32, _, SHA>::new(
+                    cipher,
+                    &pattern,
+                    true,
+                    &vector.init_prologue.0,
+                    vector
+                        .init_static
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .init_ephemeral
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .init_remote_static
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                    vector
+                        .init_remote_ephemeral
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                );
+                let responder = melodies::HandshakeState::<32, 32, _, SHA>::new(
+                    cipher,
+                    pattern,
+                    false,
+                    &vector.resp_prologue.0,
+                    vector
+                        .resp_static
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .resp_ephemeral
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .resp_remote_static
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                    vector
+                        .resp_remote_ephemeral
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                );
+                do_handshake(initiator, responder, &vector)
+            }
+            ("25519", "SHA512") => {
+                let initiator = melodies::HandshakeState::<32, 64, _, SHA>::new(
+                    cipher,
+                    &pattern,
+                    true,
+                    &vector.init_prologue.0,
+                    vector
+                        .init_static
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .init_ephemeral
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .init_remote_static
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                    vector
+                        .init_remote_ephemeral
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                );
+                let responder = melodies::HandshakeState::<32, 64, _, SHA>::new(
+                    cipher,
+                    pattern,
+                    false,
+                    &vector.resp_prologue.0,
+                    vector
+                        .resp_static
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .resp_ephemeral
+                        .as_ref()
+                        .map(|b| DH25519::new(&b.0))
+                        .as_ref(),
+                    vector
+                        .resp_remote_static
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                    vector
+                        .resp_remote_ephemeral
+                        .as_ref()
+                        .map(|b| b.0.clone().try_into().unwrap()),
+                );
+                do_handshake(initiator, responder, &vector)
+            }
+            _ => {
+                skipped += 1; continue},
         };
 
         test_count += 1;
     }
     let dur = Instant::now().duration_since(start).as_millis();
-    println!("Tested {test_count} vectors in {dur}ms");
+    println!("Tested {test_count} vectors in {dur}ms, skipped {skipped}");
 }
 
 #[test]
 pub fn cacophony() {
     let vectors = read_vectors(include_str!("./vectors/cacophony.json"));
-    test_vectors(vectors);
+    test_vectors(vectors, false);
 }
+
+#[test]
+pub fn cacophony_ring_chacha() {
+    let vectors = read_vectors(include_str!("./vectors/snow.json"));
+    test_vectors(vectors, true);
+}
+
 
 #[test]
 pub fn snow() {
     let vectors = read_vectors(include_str!("./vectors/snow.json"));
-    test_vectors(vectors);
+    test_vectors(vectors, false);
+}
+
+#[test]
+pub fn snow_ring_chacha() {
+    let vectors = read_vectors(include_str!("./vectors/snow.json"));
+    test_vectors(vectors, true);
 }

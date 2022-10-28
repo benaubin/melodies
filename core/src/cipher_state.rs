@@ -22,9 +22,7 @@ impl<T> CipherState<T> {
     }
     pub fn decrypt_with_nonce<'a>(&self, n: u64, ad: &[u8], buf: &'a mut [u8]) -> Option<&'a [u8]> {
         assert_ne!(n, u64::MAX);
-        let (buf, tag) = buf.split_at_mut(buf.len() - TAG_SIZE);
-        let tag = tag.as_ref().try_into().unwrap();
-        self.cipher.decrypt(&self.key, n, ad, buf, tag).then_some(buf)
+        self.cipher.decrypt(&self.key, n, ad, buf)
     }
     pub fn rekey(&mut self) {
         let tmp = Zeroizing::new(self.key);

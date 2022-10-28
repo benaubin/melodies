@@ -1,5 +1,5 @@
 use chacha20poly1305::{aead::Nonce, AeadInPlace, ChaCha20Poly1305, KeyInit, Tag};
-use melodies_core::crypto::Cipher;
+use melodies_core::crypto::{Cipher, TAG_SIZE};
 
 pub struct ChaChaPoly;
 
@@ -30,13 +30,17 @@ impl Cipher for ChaChaPoly {
         n: u64,
         ad: &[u8],
         buf: &'a mut [u8],
-        tag: &'a [u8; melodies_core::crypto::TAG_SIZE],
-    ) -> bool {
+    ) -> Option<&'a [u8]> {
+        let (buf, tag) = buf.split_at_mut(buf.len() - TAG_SIZE);
         let cipher = ChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key));
         let mut nonce = [0; 12];
         nonce[4..].copy_from_slice(&n.to_le_bytes());
         let nonce = Nonce::<ChaCha20Poly1305>::from_slice(&nonce);
-        let tag = Tag::from_slice(&tag[..]);
-        AeadInPlace::decrypt_in_place_detached(&cipher, nonce, ad, buf, tag).is_ok()
+        let tag = Tag::from_slice(tag);
+        if AeadInPlace::decrypt_in_place_detached(&cipher, nonce, ad, buf, tag).is_ok() {
+            Some(buf)
+        } else {
+            None
+        }
     }
 }
