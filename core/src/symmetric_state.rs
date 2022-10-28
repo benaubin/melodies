@@ -105,8 +105,8 @@ impl<const HASHLEN: usize, H: HashFunction<HASHLEN>> SymmetricState<HASHLEN, H> 
             input_key_material,
             &mut [&mut ck, &mut temp_h, &mut temp_k],
         );
+        self.data.ck.as_mut().copy_from_slice(ck.as_ref());
         self.mix_hash(temp_h.as_ref());
-        self.data.ck.as_mut().copy_from_slice(temp_k.as_ref());
         self.cipher
             .initialize_key(&temp_k[..32].try_into().unwrap());
         self.data.has_key = true;

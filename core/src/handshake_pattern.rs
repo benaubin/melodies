@@ -12,114 +12,241 @@ pub enum MessageToken {
 
 pub type MessagePattern = &'static [MessageToken];
 
+#[derive(Debug)]
 pub struct HandshakePattern {
-    pub(crate) name: &'static str,
+    pub name: &'static str,
     /// index 0: initiator pre-message
     /// index 1: responder pre-message
     /// index 2: message 1, from initator
-    pub(crate) patterns: &'static [MessagePattern],
+    pub patterns: &'static [MessagePattern],
 }
 
+#[allow(non_upper_case_globals)]
 pub mod patterns {
+    use super::HandshakePattern;
     use super::MessageToken::*;
-    use super::{HandshakePattern};
 
-    pub const NN: HandshakePattern = HandshakePattern {
-        name: "NN",
-        patterns: &[&[], &[], &[E], &[E, EE]],
-    };
-    pub const NK: HandshakePattern = HandshakePattern {
-        name: "NK",
-        patterns: &[&[], &[S], &[E, ES], &[E, EE]],
-    };
-    pub const NX: HandshakePattern = HandshakePattern {
-        name: "NX",
-        patterns: &[&[], &[], &[E], &[E, EE, S, ES]],
-    };
-    pub const XN: HandshakePattern = HandshakePattern {
-        name: "XN",
-        patterns: &[
-            &[],
-            &[],
-            &[E],
-            &[E, EE],
-            &[S, SE]
-        ],
-    };
-    pub const XK: HandshakePattern = HandshakePattern {
-        name: "XK",
-        patterns: &[
-            &[],
-            &[S],
-            &[E, ES],
-            &[E, EE],
-            &[S, SE]
-        ],
-    };
-    pub const XX: HandshakePattern = HandshakePattern {
-        name: "XX",
-        patterns: &[
-            &[],
-            &[],
-            &[E],
-            &[E, EE, S, ES],
-            &[S, SE]
-        ],
-    };
-    pub const KN: HandshakePattern = HandshakePattern {
-        name: "KN",
-        patterns: &[
-            &[S],
-            &[],
-            &[E],
-            &[E, EE, SE]
-        ],
-    };
-    pub const KK: HandshakePattern = HandshakePattern {
-        name: "KK",
-        patterns: &[
-            &[S],
-            &[S],
-            &[E, ES, SS],
-            &[E, EE, SE]
-        ],
-    };
-    pub const KX: HandshakePattern = HandshakePattern {
-        name: "KX",
-        patterns: &[
-            &[S],
-            &[],
-            &[E],
-            &[E, EE, SE, S, ES]
-        ],
-    };
-    pub const IN: HandshakePattern = HandshakePattern {
-        name: "IN",
-        patterns: &[
-            &[],
-            &[],
-            &[E, S],
-            &[E, EE, SE],
-        ],
-    };
-    pub const IK: HandshakePattern = HandshakePattern {
-        name: "IK",
-        patterns: &[
-            &[],
-            &[S],
-            &[E, ES, S, SS],
-            &[E, EE, SE],
-        ],
-    };
-    pub const IX: HandshakePattern = HandshakePattern {
-        name: "IX",
-        patterns: &[
-            &[],
-            &[],
-            &[E, S],
-            &[E, EE, SE, S, ES],
-        ],
-    };
+
+    macro_rules! spattern {
+        (
+            $(-> $($pre_tok:ident),*)?
+            $(<- $($pre_tok_r:ident),*)?
+            ...
+            $( -> $($tok:ident),* $(<- $($tok_r:ident),*)? )*
+        ) => {
+            &[
+                &[$( $($pre_tok),* )?],
+                &[$( $($pre_tok_r),* )?],
+                $(
+                    &[ $($tok),* ],
+                    $(&[ $($tok_r),* ])?
+                ),*
+            ]
+        };
+        (
+            $( -> $($tok:ident),* $(<- $($tok_r:ident),*)? )*
+        ) => {
+            spattern! {
+                ...
+                $( -> $($tok),* $(<- $($tok_r),*)? )*
+            }
+        };
+    }
+
+    macro_rules! patterns {
+        (
+            $($name:ident: [
+                $([ $($tok:ident),* ]),*
+            ])*
+        ) => {
+            $(
+                pub static $name: HandshakePattern = HandshakePattern {
+                    name: core::stringify!($name),
+                    patterns: &[
+                        $( &[ $($tok),* ] ),*
+                    ],
+                };
+            )*
+
+            pub static ALL: &'static [&HandshakePattern] = &[ $(&$name),* ];
+        };
+        (
+            $($name:ident: { $($tt:tt)* })*
+        ) => {
+            $(
+                pub static $name: HandshakePattern = HandshakePattern {
+                    name: core::stringify!($name),
+                    patterns: spattern! { $($tt)* },
+                };
+            )*
+
+            pub static ALL: &'static [&HandshakePattern] = &[ $(&$name),* ];
+        };
+    }
+
+    patterns! {
+        NN: {
+            -> E
+            <- E, EE
+        }
+        NNpsk0: {
+            -> PSK, E
+            <- E, EE
+        }
+        NNpsk2: {
+            -> E
+            <- E, EE, PSK
+        }
+        NK: {
+            <- S
+            ...
+            -> E, ES
+            <- E, EE
+        }
+        NKpsk0: {
+            <- S
+            ...
+            -> PSK, E, ES
+            <- E, EE
+        }
+        NKpsk2: {
+            <- S
+            ...
+            -> E, ES
+            <- E, EE, PSK
+        }
+        NX: {
+            -> E
+            <- E, EE, S, ES
+        }
+        NXpsk2: {
+            -> E
+            <- E, EE, S, ES, PSK
+        }
+        XN: {
+            -> E
+            <- E, EE
+            -> S, SE
+        }
+        XNpsk3: {
+            -> E
+            <- E, EE
+            -> S, SE, PSK
+        }
+        XK: {
+            <- S
+            ...
+            -> E, ES
+            <- E, EE
+            -> S, SE
+        }
+        XKpsk3: {
+            <- S
+            ...
+            -> E, ES
+            <- E, EE
+            -> S, SE, PSK
+        }
+        XX: {
+            -> E
+            <- E, EE, S, ES
+            -> S, SE
+        }
+        XXpsk3: {
+            -> E
+            <- E, EE, S, ES
+            -> S, SE, PSK
+        }
+        KN: {
+            -> S
+            ...
+            -> E
+            <- E, EE, SE
+        }
+        KNpsk0: {
+            -> S
+            ...
+            -> PSK, E
+            <- E, EE, SE
+        }
+        KNpsk2: {
+            -> S
+            ...
+            -> E
+            <- E, EE, SE, PSK
+        }
+        KK: {
+            -> S
+            <- S
+            ...
+            -> E, ES, SS
+            <- E, EE, SE
+        }
+        KKpsk0: {
+            -> S
+            <- S
+            ...
+            -> PSK, E, ES, SS
+            <- E, EE, SE
+        }
+        KKpsk2: {
+            -> S
+            <- S
+            ...
+            -> E, ES, SS
+            <- E, EE, SE, PSK
+        }
+        KX: {
+            -> S
+            ...
+            -> E
+            <- E, EE, SE, S, ES
+        }
+        KXpsk2: {
+            -> S
+            ...
+            -> E
+            <- E, EE, SE, S, ES, PSK
+        }
+        IN: {
+            -> E, S
+            <- E, EE, SE
+        }
+        INpsk1: {
+            -> E, S, PSK
+            <- E, EE, SE
+        }
+        INpsk2: {
+            -> E, S
+            <- E, EE, SE, PSK
+        }
+        IK: {
+            <- S
+            ...
+            -> E, ES, S, SS
+            <- E, EE, SE
+        }
+        IKpsk1: {
+            <- S
+            ...
+            -> E, ES, S, SS, PSK
+            <- E, EE, SE
+        }
+        IKpsk2: {
+            <- S
+            ...
+            -> E, ES, S, SS
+            <- E, EE, SE, PSK
+        }
+        IX: {
+            -> E, S
+            <- E, EE, SE, S, ES
+        }
+        IXpsk2: {
+            -> E, S
+            <- E, EE, SE, S, ES, PSK
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -130,10 +257,14 @@ pub enum InvalidReason {
     MissingEphemeralDH,
     MissingKey,
     RedundantTransmission,
-    EncryptAfterPSKBeforeE
+    EncryptAfterPSKBeforeE,
 }
 
 impl HandshakePattern {
+    pub(crate) fn has_psk(&self) -> bool {
+        self.patterns.iter().any(|p| p.contains(&MessageToken::PSK))
+    }
+
     pub fn validate(&self) -> Result<(), InvalidReason> {
         use MessageToken::*;
 
@@ -200,7 +331,7 @@ impl HandshakePattern {
                     S => &mut re_s,
                 };
                 if *existing {
-                    return Err(InvalidReason::RedundantTransmission)
+                    return Err(InvalidReason::RedundantTransmission);
                 }
                 *existing = true;
 
@@ -212,20 +343,28 @@ impl HandshakePattern {
 
             if initiator {
                 if se {
-                    if !ee { return Err(InvalidReason::MissingEphemeralDH) }
+                    if !ee {
+                        return Err(InvalidReason::MissingEphemeralDH);
+                    }
                 }
                 if ss {
-                    if !es { return Err(InvalidReason::MissingEphemeralDH) }
+                    if !es {
+                        return Err(InvalidReason::MissingEphemeralDH);
+                    }
                 }
             } else {
                 if es {
-                    if !ee { return Err(InvalidReason::MissingEphemeralDH) }
+                    if !ee {
+                        return Err(InvalidReason::MissingEphemeralDH);
+                    }
                 }
                 if ss {
-                    if !es { return Err(InvalidReason::MissingEphemeralDH) }
+                    if !es {
+                        return Err(InvalidReason::MissingEphemeralDH);
+                    }
                 }
             }
-            
+
             let sent_e = if initiator { in_e } else { re_e };
             if has_psk && !sent_e {
                 return Err(InvalidReason::EncryptAfterPSKBeforeE);
@@ -251,16 +390,19 @@ pub mod test {
             name: "",
             patterns: &[&[], &[]]
         }
-        .validate().is_ok());
+        .validate()
+        .is_ok());
         assert!(!HandshakePattern {
             name: "",
             patterns: &[&[PSK], &[]]
         }
-        .validate().is_ok());
+        .validate()
+        .is_ok());
         assert!(HandshakePattern {
             name: "",
             patterns: &[&[], &[], &[E], &[E, EE]]
         }
-        .validate().is_ok());
+        .validate()
+        .is_ok());
     }
 }

@@ -24,6 +24,8 @@ pub struct HandshakeState<
     rs: Option<[u8; DHLEN]>,
     /// The remote party's ephemeral public key
     re: Option<[u8; DHLEN]>,
+    /// The next psk to use
+    next_psk: Option<Zeroizing<[u8; 32]>>,
     /// A boolean indicating the initiator or responder role.
     pub initiator: bool,
     /// The turn number, 0 is for before first message, 1 is after first message, etc...
@@ -70,6 +72,7 @@ impl<const DHLEN: usize, const HASHLEN: usize, K: DHKeypair<DHLEN>, H: HashFunct
             e: e.cloned(),
             rs,
             re,
+            next_psk: None,
             initiator,
             turn: 0,
             pattern,
@@ -141,6 +144,10 @@ impl<const DHLEN: usize, const HASHLEN: usize, K: DHKeypair<DHLEN>, H: HashFunct
         self.turn % 2 == (!self.initiator as u8)
     }
 
+    pub fn insert_psk(&mut self, psk: &[u8]) {
+        self.next_psk.insert(Zeroizing::default()).copy_from_slice(psk);
+    }
+
     pub fn write_msg(&mut self, buf: &mut [u8], payload_size: usize) -> usize {
         assert!(self.is_our_turn());
         let msg = &self.pattern.patterns[self.turn as usize + 2];
@@ -157,6 +164,7 @@ impl<const DHLEN: usize, const HASHLEN: usize, K: DHKeypair<DHLEN>, H: HashFunct
                     }
                     let e_pub = self.e.as_ref().unwrap().public_key();
                     self.symmetric_state.mix_hash(&e_pub);
+                    if self.pattern.has_psk() { self.symmetric_state.mix_key(&e_pub); }
                     buf_remaining[..e_pub.len()].copy_from_slice(&e_pub);
                     buf_remaining = &mut buf_remaining[e_pub.len()..];
                 }
@@ -169,7 +177,10 @@ impl<const DHLEN: usize, const HASHLEN: usize, K: DHKeypair<DHLEN>, H: HashFunct
                     buf_remaining = &mut buf_remaining[len..];
                 }
                 EE | ES | SE | SS => self.dh(*tok),
-                PSK => todo!(),
+                PSK => {
+                    let psk = self.next_psk.take().expect("pattern requires psk");
+                    self.symmetric_state.mix_key_and_hash(psk.as_ref());
+                },
             }
         }
 
@@ -200,6 +211,7 @@ impl<const DHLEN: usize, const HASHLEN: usize, K: DHKeypair<DHLEN>, H: HashFunct
                     buf = rest;
                     self.re = Some(re_buf.try_into().unwrap());
                     self.symmetric_state.mix_hash(&re_buf);
+                    if self.pattern.has_psk() { self.symmetric_state.mix_key(&re_buf); }
                 }
                 S => {
                     assert!(self.rs.is_none());
@@ -222,7 +234,10 @@ impl<const DHLEN: usize, const HASHLEN: usize, K: DHKeypair<DHLEN>, H: HashFunct
                     }
                 }
                 EE | ES | SE | SS => self.dh(*tok),
-                PSK => todo!(),
+                PSK => {
+                    let psk = self.next_psk.take().expect("pattern requires psk");
+                    self.symmetric_state.mix_key_and_hash(psk.as_ref());
+                },
             }
         }
 
